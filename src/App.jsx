@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from "recharts";
 
 const CATS = [
@@ -203,103 +203,18 @@ function OfferingDocs({deal,trial,onUpgrade}){
   </div>);
 }
 
-import { useState, useEffect, useRef } from "react";
-
-function loadLS(key, fallback) { try { const v=localStorage.getItem(key); return v?JSON.parse(v):fallback; } catch { return fallback; } }
-function saveLS(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
-
 export default function PAISPro(){
   const trial=getTrialState();
-  const [tab,setTab]=useState("aiintake");
-  const [modal,setModal]=useState(false);
-  const [pipe,setPipe]=useState(()=>loadLS("pais_pipeline",[]));
-  const [weights,setWeights]=useState(()=>loadLS("pais_weights",Object.fromEntries(CATS.map(c=>[c.id,c.weight]))));
-  const [invStrategy,setInvStrategy]=useState(()=>loadLS("pais_strategy","Value-Add"));
-  const [intake,setI]=useState(()=>loadLS("pais_intake",{address:"",city:"",state:"",units:"",assetType:"Multifamily (21-100)",dealType:"Acquisition",price:"",noi:"",gri:"",vacancy:"5",down:"25",rate:"6.5",yrs:"30",rc:"",notes:""}));
-  const [scores,setSc]=useState(()=>loadLS("pais_scores",{financial:70,market:70,physical:70,operational:70,location:70,strategic:70}));
-  const [hfT,setHfT]=useState(()=>loadLS("pais_hft",Object.fromEntries(HF_DEFAULTS.map(f=>[f.id,f.def]))));
-  const [hfO,setHfO]=useState(()=>loadLS("pais_hfo",Object.fromEntries(HF_DEFAULTS.map(f=>[f.id,"auto"]))));
-  const [amends,setAm]=useState(()=>loadLS("pais_amends",{a1:false,a2:false,a3:false}));
+  const [tab,setTab]=useState("aiintake");const [pipe,setPipe]=useState([]);const [modal,setModal]=useState(false);
+  const [weights,setWeights]=useState(Object.fromEntries(CATS.map(c=>[c.id,c.weight])));
+  const [invStrategy,setInvStrategy]=useState("Value-Add");
+  const [intake,setI]=useState({address:"",city:"",state:"",units:"",assetType:"Multifamily (21-100)",dealType:"Acquisition",price:"",noi:"",gri:"",vacancy:"5",down:"25",rate:"6.5",yrs:"30",rc:"",notes:""});
+  const [scores,setSc]=useState({financial:70,market:70,physical:70,operational:70,location:70,strategic:70});
+  const [hfT,setHfT]=useState(Object.fromEntries(HF_DEFAULTS.map(f=>[f.id,f.def])));
+  const [hfO,setHfO]=useState(Object.fromEntries(HF_DEFAULTS.map(f=>[f.id,"auto"])));
+  const [amends,setAm]=useState({a1:false,a2:false,a3:false});
   const [showChats,setShowChats]=useState(Object.fromEntries(CATS.map(c=>[c.id,false])));
-  const [opProfile,setOpProfile]=useState(()=>loadLS("pais_opprofile","Syndicator / GP"));
-  const [minCoC,setMinCoC]=useState(()=>loadLS("pais_mincoc","8"));
-  const [minIRR,setMinIRR]=useState(()=>loadLS("pais_minirr","15"));
-  const [holdPref,setHoldPref]=useState(()=>loadLS("pais_holdpref","5-7 years"));
-  const [riskTol,setRiskTol]=useState(()=>loadLS("pais_risktol","Balanced"));
-  const [targetMarkets,setTargetMarkets]=useState(()=>loadLS("pais_markets",""));
-  const [assetPrefs,setAssetPrefs]=useState(()=>loadLS("pais_assetprefs",[]));
-  const [maxPrice,setMaxPrice]=useState(()=>loadLS("pais_maxprice",""));
-  const [aiScoring,setAiScoring]=useState(false);
-  const [aiScoreMsg,setAiScoreMsg]=useState("");
-  const scoreDebounce=useRef(null);
-
-  // Auto-save all state to localStorage
-  useEffect(()=>{ saveLS("pais_pipeline",pipe); },[pipe]);
-  useEffect(()=>{ saveLS("pais_weights",weights); },[weights]);
-  useEffect(()=>{ saveLS("pais_strategy",invStrategy); },[invStrategy]);
-  useEffect(()=>{ saveLS("pais_intake",intake); },[intake]);
-  useEffect(()=>{ saveLS("pais_scores",scores); },[scores]);
-  useEffect(()=>{ saveLS("pais_hft",hfT); },[hfT]);
-  useEffect(()=>{ saveLS("pais_hfo",hfO); },[hfO]);
-  useEffect(()=>{ saveLS("pais_amends",amends); },[amends]);
-  useEffect(()=>{ saveLS("pais_opprofile",opProfile); },[opProfile]);
-  useEffect(()=>{ saveLS("pais_mincoc",minCoC); },[minCoC]);
-  useEffect(()=>{ saveLS("pais_minirr",minIRR); },[minIRR]);
-  useEffect(()=>{ saveLS("pais_holdpref",holdPref); },[holdPref]);
-  useEffect(()=>{ saveLS("pais_risktol",riskTol); },[riskTol]);
-  useEffect(()=>{ saveLS("pais_markets",targetMarkets); },[targetMarkets]);
-  useEffect(()=>{ saveLS("pais_assetprefs",assetPrefs); },[assetPrefs]);
-  useEffect(()=>{ saveLS("pais_maxprice",maxPrice); },[maxPrice]);
-
-  // Reactive AI auto-scoring — triggers when intake data has enough to score
-  useEffect(()=>{
-    if(!intake.price||!intake.noi||!intake.address) return;
-    if(scoreDebounce.current) clearTimeout(scoreDebounce.current);
-    scoreDebounce.current=setTimeout(async()=>{
-      setAiScoring(true);
-      setAiScoreMsg("AI is scoring this deal...");
-      try {
-        const fin=calcFin(intake);
-        const prompt=`You are a real estate investment analyst. Score this deal on each of the 6 PAIS categories from 0-100 based on the data provided and your knowledge of current market conditions.
-
-Deal Data:
-Property: ${intake.address}, ${intake.city} ${intake.state}
-Asset Type: ${intake.assetType} | Deal Type: ${intake.dealType} | Units: ${intake.units||"N/A"}
-Asking Price: $${(+intake.price||0).toLocaleString()} | Stabilized NOI: $${(+intake.noi||0).toLocaleString()}
-Cap Rate: ${fin.capRate.toFixed(2)}% | DSCR: ${fin.dscr.toFixed(2)}x | Cash-on-Cash: ${fin.coc.toFixed(2)}%
-vs Replacement Cost: ${fin.rcPct>0?fin.rcPct.toFixed(0)+"%":"Not provided"}
-Vacancy: ${intake.vacancy||5}% | GRI: ${intake.gri?("$"+(+intake.gri).toLocaleString()):"Not provided"}
-Notes: ${intake.notes||"None"}
-
-Score each category and respond ONLY with a valid JSON object, no explanation:
-{"financial":85,"market":72,"physical":65,"operational":70,"location":78,"strategic":68,"reasoning":{"financial":"one sentence","market":"one sentence","physical":"one sentence","operational":"one sentence","location":"one sentence","strategic":"one sentence"}}
-
-Base scores on these benchmarks:
-Financial (85-100: cap rate >market+150bps, DSCR>1.35x, price<70% replacement; 70-84: at market; 55-69: slightly below; <55: negative leverage)
-Market (85-100: top-quartile growth, supply-constrained; 70-84: above average; 55-69: flat; <55: declining)
-Physical (85-100: post-2000, systems<10yr; 70-84: 1990s, moderate capex; 55-69: 1970s-80s; <55: pre-1970)
-Operational (85-100: occupancy>95%, institutional PM; 70-84: 90-95%; 55-69: 85-90%; <55: below 85%)
-Location (85-100: walk score>80, major employment; 70-84: suburban; 55-69: car-dependent; <55: isolated)
-Strategic (85-100: ideal mandate, broad exit; 70-84: good fit; 55-69: acceptable; <55: off-mandate)`;
-
-        const r=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
-        const d=await r.json();
-        const text=d.content?.find(b=>b.type==="text")?.text||"{}";
-        const clean=text.replace(/```json|```/g,"").trim();
-        const result=JSON.parse(clean);
-        setSc({
-          financial:Math.min(100,Math.max(0,Math.round(result.financial||70))),
-          market:Math.min(100,Math.max(0,Math.round(result.market||70))),
-          physical:Math.min(100,Math.max(0,Math.round(result.physical||70))),
-          operational:Math.min(100,Math.max(0,Math.round(result.operational||70))),
-          location:Math.min(100,Math.max(0,Math.round(result.location||70))),
-          strategic:Math.min(100,Math.max(0,Math.round(result.strategic||70))),
-        });
-        setAiScoreMsg("AI scoring complete - adjust any score to override");
-      } catch(e) { setAiScoreMsg("AI scoring unavailable - score manually"); }
-      setAiScoring(false);
-    }, 2000);
-  },[intake.price,intake.noi,intake.address,intake.assetType,intake.units,intake.vacancy]);
+  const [opProfile,setOpProfile]=useState("Syndicator / GP");const [minCoC,setMinCoC]=useState("8");const [minIRR,setMinIRR]=useState("15");const [holdPref,setHoldPref]=useState("5-7 years");const [riskTol,setRiskTol]=useState("Balanced");const [targetMarkets,setTargetMarkets]=useState("");const [assetPrefs,setAssetPrefs]=useState([]);const [maxPrice,setMaxPrice]=useState("");
   const fin=calcFin(intake);const comp=getComposite(scores,weights);const b=getBand(comp);const deal={intake,scores,weights,amends,fin,comp,b};
   const flagged=HF_DEFAULTS.filter(f=>{if(hfO[f.id]==="flagged")return true;if(hfO[f.id]==="clear")return false;if(f.metric&&fin[f.metric]!==undefined){const val=fin[f.metric];if(f.dir==="above")return val>hfT[f.id];if(f.dir==="below")return val<hfT[f.id];}return false;});
   const applyStrategy=(strat)=>{setInvStrategy(strat);if(STRATEGY_WEIGHTS[strat])setWeights({...STRATEGY_WEIGHTS[strat]});};
@@ -335,7 +250,7 @@ Strategic (85-100: ideal mandate, broad exit; 70-84: good fit; 55-69: acceptable
 
       {tab==="intake"&&<div><h2 style={{fontSize:20,color:"#1B2A4A",marginBottom:20,fontWeight:700}}>Deal Intake</h2><div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:16,marginBottom:16}}><F label="Street Address" value={intake.address} onChange={v=>setI(p=>({...p,address:v}))} placeholder="123 Main Street"/><F label="City" value={intake.city} onChange={v=>setI(p=>({...p,city:v}))} placeholder="Nashville"/><F label="State" value={intake.state} onChange={v=>setI(p=>({...p,state:v}))} placeholder="TN"/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:16,marginBottom:16}}><Sel label="Asset Type" value={intake.assetType} onChange={v=>setI(p=>({...p,assetType:v}))} options={ASSET_TYPES}/><Sel label="Deal Type" value={intake.dealType} onChange={v=>setI(p=>({...p,dealType:v}))} options={DEAL_TYPES}/><F label="Units" value={intake.units} onChange={v=>setI(p=>({...p,units:v}))} placeholder="72" type="number"/><F label="Acquisition Price ($)" value={intake.price} onChange={v=>setI(p=>({...p,price:v}))} placeholder="4500000" type="number"/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:16,marginBottom:16}}><F label="Stabilized NOI ($)" value={intake.noi} onChange={v=>setI(p=>({...p,noi:v}))} placeholder="315000" type="number"/><F label="Gross Rental Income ($)" value={intake.gri} onChange={v=>setI(p=>({...p,gri:v}))} placeholder="420000" type="number"/><F label="Vacancy Rate (%)" value={intake.vacancy} onChange={v=>setI(p=>({...p,vacancy:v}))} placeholder="5" type="number"/><F label="Replacement Cost ($)" value={intake.rc} onChange={v=>setI(p=>({...p,rc:v}))} placeholder="5500000" type="number"/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:16}}><F label="Down Payment (%)" value={intake.down} onChange={v=>setI(p=>({...p,down:v}))} placeholder="25" type="number"/><F label="Loan Rate (%)" value={intake.rate} onChange={v=>setI(p=>({...p,rate:v}))} placeholder="6.5" type="number"/><F label="Amortization (years)" value={intake.yrs} onChange={v=>setI(p=>({...p,yrs:v}))} placeholder="30" type="number"/></div><div><label style={{fontSize:12,color:"#666",fontWeight:600,display:"block",marginBottom:4}}>Deal Notes</label><textarea value={intake.notes} onChange={e=>setI(p=>({...p,notes:e.target.value}))} rows={4} placeholder="Value-add thesis, key assumptions, sponsor background, deal source..." style={{width:"100%",padding:"10px 14px",border:"1.5px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/></div>{intake.price&&<div style={{marginTop:24,padding:20,background:"#fff",borderRadius:10,border:"1px solid #e8eaed"}}><p style={{fontSize:12,color:"#888",marginBottom:14,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Quick Metrics</p><div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:16}}>{[{l:"Cap Rate",v:fmtP(fin.capRate)},{l:"Cash-on-Cash",v:fmtP(fin.coc)},{l:"DSCR",v:fmt(fin.dscr)+"x"},{l:"vs Replacement",v:fin.rcPct>0?fmt(fin.rcPct)+"pct":"--"},{l:"Annual Cash Flow",v:fmtC(fin.cf)}].map(m=>(<div key={m.l} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#1B2A4A"}}>{m.v}</div><div style={{fontSize:11,color:"#888",marginTop:2}}>{m.l}</div></div>))}</div></div>}</div>}
 
-      {tab==="scoring"&&<div style={{position:"relative"}}>{isF&&<Locked minTier="starter" onUpgrade={()=>setModal(true)}/>}<h2 style={{fontSize:20,color:"#1B2A4A",marginBottom:6,fontWeight:700}}>PAIS Scoring</h2><p style={{color:"#666",fontSize:14,marginBottom:24}}>Score each category 0-100. Enter deal data to trigger AI scoring.</p>{aiScoring&&<div style={{padding:"8px 16px",background:"#fff8e1",borderRadius:8,border:"1.5px solid #C5993A",fontSize:13,color:"#7a5c00",marginBottom:16}}>AI scoring in progress...</div>}{!aiScoring&&aiScoreMsg&&<div style={{padding:"8px 16px",background:"#e8f5e9",borderRadius:8,border:"1.5px solid #27AE60",fontSize:13,color:"#2e7d32",marginBottom:16}}>{aiScoreMsg}</div>}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>{CATS.map(c=>{const showChat=showChats[c.id];return(<div key={c.id} style={{background:"#fff",borderRadius:10,padding:20,border:"1px solid #e8eaed"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><div style={{fontWeight:700,color:"#1B2A4A",fontSize:15}}>{c.label}</div><div style={{fontSize:11,color:"#888"}}>Weight: {(weights[c.id]*100).toFixed(0)}pct - Contribution: {(scores[c.id]*weights[c.id]).toFixed(1)} pts</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setShowChats(p=>({...p,[c.id]:!p[c.id]}))} style={{padding:"4px 10px",background:showChat?"#fff8e1":"#f0f4ff",border:`1px solid ${showChat?"#C5993A":"#c8d8ff"}`,borderRadius:6,fontSize:11,cursor:"pointer",color:showChat?"#7a5c00":"#1B2A4A"}}>{showChat?"Close":"Discuss"}</button><div style={{fontSize:32,fontWeight:800,color:c.color}}>{scores[c.id]}</div></div></div><input type="range" min={0} max={100} value={scores[c.id]} onChange={e=>setSc(p=>({...p,[c.id]:+e.target.value}))} style={{width:"100%",accentColor:c.color,marginBottom:12}}/><div style={{borderTop:"1px solid #f0f0f0",paddingTop:10}}>{GUIDES[c.id].map((g,i)=><p key={i} style={{fontSize:11,color:"#777",margin:"3px 0",lineHeight:1.4}}>{g}</p>)}</div>{showChat&&<div style={{marginTop:16,borderTop:"1px solid #e8eaed",paddingTop:16}}><p style={{fontSize:12,color:"#888",marginBottom:10}}>Discuss the {c.label} score - argue, question, or request clarification.</p><AIPanel deal={deal} mode="dispute"/></div>}</div>);})}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginTop:20}}><Card><p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Score Radar</p><ResponsiveContainer width="100%" height={220}><RadarChart data={CATS.map(c=>({subject:c.label.split(" ")[0],score:scores[c.id],fullMark:100}))}><PolarGrid stroke="#eee"/><PolarAngleAxis dataKey="subject" tick={{fontSize:11,fill:"#666"}}/><Radar dataKey="score" stroke="#C5993A" fill="#C5993A" fillOpacity={0.25} strokeWidth={2}/></RadarChart></ResponsiveContainer></Card><Card><p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Weighted Contribution</p><ResponsiveContainer width="100%" height={220}><BarChart data={CATS.map(c=>({name:c.label.split(" ")[0],val:scores[c.id]*weights[c.id],color:c.color}))} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" domain={[0,35]} tick={{fontSize:11}}/><YAxis type="category" dataKey="name" tick={{fontSize:11}} width={70}/><Tooltip formatter={v=>v.toFixed(1)+" pts"}/><Bar dataKey="val" radius={[0,4,4,0]}>{CATS.map((c,i)=><Cell key={i} fill={c.color}/>)}</Bar></BarChart></ResponsiveContainer></Card></div><Card style={{marginTop:20}}><p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Amendment v1 Flags</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>{[{k:"a1",l:"A1: Subsidized Demand",d:"Section 8/LIHTC - adjust affordability to payment standards"},{k:"a2",l:"A2: Transitional Vacancy",d:"Score on occupancy history not spot vacancy rate"},{k:"a3",l:"A3: Catalytic Investment",d:"Funded public investment in trade area (+up to 15 pts Market)"}].map(a=>(<div key={a.k} onClick={()=>setAm(p=>({...p,[a.k]:!p[a.k]}))} style={{padding:14,border:`2px solid ${amends[a.k]?"#C5993A":"#e8eaed"}`,borderRadius:8,cursor:"pointer",background:amends[a.k]?"#fff8e1":"#fafafa"}}><div style={{fontWeight:700,fontSize:13,color:amends[a.k]?"#C5993A":"#1B2A4A",marginBottom:4}}>{amends[a.k]?"v ":""}{a.l}</div><div style={{fontSize:11,color:"#777",lineHeight:1.4}}>{a.d}</div></div>))}</div></Card></div>}
+      {tab==="scoring"&&<div style={{position:"relative"}}>{isF&&<Locked minTier="starter" onUpgrade={()=>setModal(true)}/>}<h2 style={{fontSize:20,color:"#1B2A4A",marginBottom:6,fontWeight:700}}>PAIS Scoring</h2><p style={{color:"#666",fontSize:14,marginBottom:24}}>Score each category 0-100. Click Discuss on any category to dispute or clarify with the AI.</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>{CATS.map(c=>{const showChat=showChats[c.id];return(<div key={c.id} style={{background:"#fff",borderRadius:10,padding:20,border:"1px solid #e8eaed"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><div style={{fontWeight:700,color:"#1B2A4A",fontSize:15}}>{c.label}</div><div style={{fontSize:11,color:"#888"}}>Weight: {(weights[c.id]*100).toFixed(0)}pct - Contribution: {(scores[c.id]*weights[c.id]).toFixed(1)} pts</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setShowChats(p=>({...p,[c.id]:!p[c.id]}))} style={{padding:"4px 10px",background:showChat?"#fff8e1":"#f0f4ff",border:`1px solid ${showChat?"#C5993A":"#c8d8ff"}`,borderRadius:6,fontSize:11,cursor:"pointer",color:showChat?"#7a5c00":"#1B2A4A"}}>{showChat?"Close":"Discuss"}</button><div style={{fontSize:32,fontWeight:800,color:c.color}}>{scores[c.id]}</div></div></div><input type="range" min={0} max={100} value={scores[c.id]} onChange={e=>setSc(p=>({...p,[c.id]:+e.target.value}))} style={{width:"100%",accentColor:c.color,marginBottom:12}}/><div style={{borderTop:"1px solid #f0f0f0",paddingTop:10}}>{GUIDES[c.id].map((g,i)=><p key={i} style={{fontSize:11,color:"#777",margin:"3px 0",lineHeight:1.4}}>{g}</p>)}</div>{showChat&&<div style={{marginTop:16,borderTop:"1px solid #e8eaed",paddingTop:16}}><p style={{fontSize:12,color:"#888",marginBottom:10}}>Discuss the {c.label} score - argue, question, or request clarification.</p><AIPanel deal={deal} mode="dispute"/></div>}</div>);})}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginTop:20}}><Card><p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Score Radar</p><ResponsiveContainer width="100%" height={220}><RadarChart data={CATS.map(c=>({subject:c.label.split(" ")[0],score:scores[c.id],fullMark:100}))}><PolarGrid stroke="#eee"/><PolarAngleAxis dataKey="subject" tick={{fontSize:11,fill:"#666"}}/><Radar dataKey="score" stroke="#C5993A" fill="#C5993A" fillOpacity={0.25} strokeWidth={2}/></RadarChart></ResponsiveContainer></Card><Card><p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Weighted Contribution</p><ResponsiveContainer width="100%" height={220}><BarChart data={CATS.map(c=>({name:c.label.split(" ")[0],val:scores[c.id]*weights[c.id],color:c.color}))} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" domain={[0,35]} tick={{fontSize:11}}/><YAxis type="category" dataKey="name" tick={{fontSize:11}} width={70}/><Tooltip formatter={v=>v.toFixed(1)+" pts"}/><Bar dataKey="val" radius={[0,4,4,0]}>{CATS.map((c,i)=><Cell key={i} fill={c.color}/>)}</Bar></BarChart></ResponsiveContainer></Card></div><Card style={{marginTop:20}}><p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Amendment v1 Flags</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>{[{k:"a1",l:"A1: Subsidized Demand",d:"Section 8/LIHTC - adjust affordability to payment standards"},{k:"a2",l:"A2: Transitional Vacancy",d:"Score on occupancy history not spot vacancy rate"},{k:"a3",l:"A3: Catalytic Investment",d:"Funded public investment in trade area (+up to 15 pts Market)"}].map(a=>(<div key={a.k} onClick={()=>setAm(p=>({...p,[a.k]:!p[a.k]}))} style={{padding:14,border:`2px solid ${amends[a.k]?"#C5993A":"#e8eaed"}`,borderRadius:8,cursor:"pointer",background:amends[a.k]?"#fff8e1":"#fafafa"}}><div style={{fontWeight:700,fontSize:13,color:amends[a.k]?"#C5993A":"#1B2A4A",marginBottom:4}}>{amends[a.k]?"v ":""}{a.l}</div><div style={{fontSize:11,color:"#777",lineHeight:1.4}}>{a.d}</div></div>))}</div></Card></div>}
 
       {tab==="fin"&&<div><h2 style={{fontSize:20,color:"#1B2A4A",marginBottom:20,fontWeight:700}}>Financial Model</h2>{isF&&<div style={{padding:14,background:"#fff8e1",borderRadius:8,border:"1.5px solid #C5993A",marginBottom:20,fontSize:13,color:"#7a5c00"}}>Free plan shows cap rate and cash-on-cash only. <button onClick={()=>setModal(true)} style={{background:"none",border:"none",color:"#C5993A",fontWeight:700,cursor:"pointer",fontSize:13}}>Upgrade for full model</button></div>}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}><Card><SH title="Key Metrics"/>{[{l:"Capitalization Rate",v:fmtP(fin.capRate),flag:fin.capRate<5,free:true},{l:"Cash-on-Cash Return",v:fmtP(fin.coc),flag:fin.coc<5,free:true},{l:"DSCR",v:fmt(fin.dscr)+"x",flag:fin.dscr<1.2,free:false},{l:"Gross Rent Multiplier",v:fmt(fin.grm)+"x",free:false},{l:"Annual Cash Flow",v:fmtC(fin.cf),flag:fin.cf<0,free:false},{l:"Monthly Debt Service",v:fmtC(fin.mp),free:false},{l:"Equity Required",v:fmtC(fin.eq),free:false},{l:"Loan Amount",v:fmtC(fin.loan),free:false}].map(m=>(<div key={m.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f4f4f4"}}><span style={{fontSize:13,color:"#555"}}>{m.l}</span>{isF&&!m.free?<span style={{fontSize:12,color:"#ccc"}}>Upgrade to view</span>:<span style={{fontSize:16,fontWeight:700,color:m.flag?"#E53935":"#1B2A4A"}}>{m.v}</span>}</div>))}</Card><div><Card style={{marginBottom:16}}><SH title="Replacement Cost Test"/>{fin.rcPct>0?(<div><div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:13,color:"#555"}}>Acquisition Price</span><span style={{fontWeight:700}}>{fmtC(+intake.price)}</span></div><div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}><span style={{fontSize:13,color:"#555"}}>Replacement Cost</span><span style={{fontWeight:700}}>{fmtC(+intake.rc)}</span></div><div style={{background:"#f4f5f7",borderRadius:8,padding:16,textAlign:"center"}}><div style={{fontSize:36,fontWeight:800,color:fin.rcPct<=70?"#27AE60":fin.rcPct<=85?"#C5993A":"#E53935"}}>{fmt(fin.rcPct)}pct</div><div style={{fontSize:12,color:"#888",marginTop:4}}>of Replacement Cost</div><div style={{fontSize:12,marginTop:8,fontWeight:600,color:fin.rcPct<=70?"#27AE60":fin.rcPct<=85?"#C5993A":"#E53935"}}>{fin.rcPct<=70?"Strong margin of safety":fin.rcPct<=85?"Approaching 85pct threshold":"Hard filter triggered"}</div></div></div>):<p style={{color:"#aaa",fontSize:13}}>Enter price and replacement cost in Deal Intake.</p>}</Card><Card><SH title="Per-Unit Metrics"/>{[{l:"Price per Unit",v:fmtC(fin.ppu)},{l:"NOI per Unit",v:fmtC(fin.noiPpu)},{l:"Cash Flow per Unit",v:fmtC(fin.cf/(+intake.units||1))}].map(m=>(<div key={m.l} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #f4f4f4"}}><span style={{fontSize:13,color:"#555"}}>{m.l}</span><span style={{fontSize:16,fontWeight:700,color:"#1B2A4A"}}>{m.v}</span></div>))}</Card></div></div></div>}
 
