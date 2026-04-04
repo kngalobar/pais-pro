@@ -234,13 +234,7 @@ ${src.content}
         <div style={{background:"#fff",borderRadius:10,padding:20,border:"1px solid #e8eaed"}}>
           <p style={{fontSize:13,fontWeight:700,color:"#1B2A4A",marginBottom:12}}>Paste Text</p>
           <textarea value={pasted} onChange={e=>setPasted(e.target.value)} rows={9}
-            placeholder={"Paste anything:
-
-• Broker email or OM excerpt
-• Zillow / LoopNet listing text
-• Rent roll figures
-• Raw numbers: '72 units, $4.5M ask, $315K NOI'
-• Multiple pastes — each becomes its own source"}
+            placeholder={"Paste anything -  • Broker email or OM excerpt • Zillow / LoopNet listing text • Rent roll figures • Raw numbers: '72 units, $4.5M ask, $315K NOI' • Multiple pastes — each becomes its own source"}
             style={{width:"100%",padding:"10px 14px",border:"1.5px solid #ddd",borderRadius:8,fontSize:13,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
           <button onClick={addPasted} disabled={!pasted.trim()} style={{marginTop:10,padding:"8px 18px",background:pasted.trim()?"#1B2A4A":"#e0e0e0",color:pasted.trim()?"#C5993A":"#aaa",border:"none",borderRadius:6,fontSize:13,fontWeight:700,cursor:pasted.trim()?"pointer":"default"}}>+ Add Source</button>
         </div>
